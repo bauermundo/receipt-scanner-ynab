@@ -12,8 +12,7 @@ YnabPayee _$YnabPayeeFromJson(Map<String, dynamic> json) => YnabPayee(
       deleted: json['deleted'] as bool,
     );
 
-Map<String, dynamic> _$YnabPayeeToJson(YnabPayee instance) =>
-    <String, dynamic>{
+Map<String, dynamic> _$YnabPayeeToJson(YnabPayee instance) => <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
       'deleted': instance.deleted,

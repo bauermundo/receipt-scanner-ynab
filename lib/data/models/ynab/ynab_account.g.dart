@@ -12,6 +12,7 @@ YnabAccount _$YnabAccountFromJson(Map<String, dynamic> json) => YnabAccount(
       type: json['type'] as String,
       onBudget: json['on_budget'] as bool,
       closed: json['closed'] as bool,
+      note: json['note'] as String?,
     );
 
 Map<String, dynamic> _$YnabAccountToJson(YnabAccount instance) =>
@@ -21,4 +22,5 @@ Map<String, dynamic> _$YnabAccountToJson(YnabAccount instance) =>
       'type': instance.type,
       'on_budget': instance.onBudget,
       'closed': instance.closed,
+      'note': instance.note,
     };

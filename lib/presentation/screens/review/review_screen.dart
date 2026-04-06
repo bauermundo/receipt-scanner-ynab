@@ -175,7 +175,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
               FilledButton.icon(
                 onPressed: _proceed,
                 icon: const Icon(Icons.arrow_forward),
-                label: const Text('Map to YNAB'),
+                label: const Text('Review & Confirm'),
               ),
             ],
           ),
