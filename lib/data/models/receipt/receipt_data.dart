@@ -11,6 +11,7 @@ class ReceiptData {
     required this.total,
     this.items = const [],
     this.suggestedCategory,
+    this.paymentMethod,
   });
 
   final String merchant;
@@ -23,6 +24,10 @@ class ReceiptData {
 
   @JsonKey(name: 'suggested_category')
   final String? suggestedCategory;
+
+  /// Card type + last 4 digits visible on receipt, e.g. "Visa 2902"
+  @JsonKey(name: 'payment_method')
+  final String? paymentMethod;
 
   /// Amount in YNAB milliunits (negative = outflow).
   int get amountInMilliunits => -(total * 1000).round();
@@ -38,6 +43,7 @@ class ReceiptData {
     double? total,
     List<ReceiptItem>? items,
     String? suggestedCategory,
+    String? paymentMethod,
   }) {
     return ReceiptData(
       merchant: merchant ?? this.merchant,
@@ -45,6 +51,7 @@ class ReceiptData {
       total: total ?? this.total,
       items: items ?? this.items,
       suggestedCategory: suggestedCategory ?? this.suggestedCategory,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
     );
   }
 }

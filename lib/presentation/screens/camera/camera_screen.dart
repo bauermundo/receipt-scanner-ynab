@@ -52,7 +52,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
 
     try {
       final repo = ref.read(receiptRepositoryProvider);
-      final receipt = await repo.parseReceiptFromImage(File(picked.path));
+      // Fetch YNAB categories so Claude can assign them per item
+      final settings = ref.read(settingsNotifierProvider).valueOrNull;
+      final budgetId = settings?.defaultBudgetId;
+      final categories = budgetId != null
+          ? await ref.read(ynabCategoriesProvider(budgetId).future).catchError((_) => <dynamic>[])
+          : null;
+      final receipt = await repo.parseReceiptFromImage(
+        File(picked.path),
+        ynabCategories: categories?.cast(),
+      );
       ref.read(currentReceiptProvider.notifier).state = receipt;
       if (mounted) {
         Navigator.of(context).pushNamed(AppRouter.review);

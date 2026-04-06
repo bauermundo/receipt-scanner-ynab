@@ -15,6 +15,7 @@ ReceiptData _$ReceiptDataFromJson(Map<String, dynamic> json) => ReceiptData(
               .toList() ??
           const [],
       suggestedCategory: json['suggested_category'] as String?,
+      paymentMethod: json['payment_method'] as String?,
     );
 
 Map<String, dynamic> _$ReceiptDataToJson(ReceiptData instance) =>
@@ -24,4 +25,5 @@ Map<String, dynamic> _$ReceiptDataToJson(ReceiptData instance) =>
       'total': instance.total,
       'items': instance.items.map((e) => e.toJson()).toList(),
       'suggested_category': instance.suggestedCategory,
+      'payment_method': instance.paymentMethod,
     };

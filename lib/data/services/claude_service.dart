@@ -5,32 +5,59 @@ import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
 import '../../core/errors/app_exception.dart';
 import '../models/receipt/receipt_data.dart';
+import '../models/ynab/ynab_category.dart';
 
 class ClaudeService {
   ClaudeService(this._client);
 
   final http.Client _client;
 
-  static const _receiptPrompt = '''
-Extract the receipt data from this image and return ONLY a valid JSON object
-with exactly these fields:
+  static String _buildPrompt(List<YnabCategory>? categories) {
+    final categorySection = categories != null && categories.isNotEmpty
+        ? '''
+Available YNAB budget categories (use these exact IDs in suggested_category_id):
+${categories.map((c) => '  ${c.id} → ${c.categoryGroupName}: ${c.name}').join('\n')}
+
+'''
+        : '';
+
+    final itemCategoryFields = categories != null
+        ? '''
+      "suggested_category_id": "<ID from the list above that best fits this item, or null>",
+      "suggested_category_name": "<matching category name, or null>"'''
+        : '''
+      "suggested_category_id": null,
+      "suggested_category_name": null''';
+
+    return '''
+${categorySection}Extract the receipt data from this image and return ONLY a valid JSON object with exactly these fields:
 {
   "merchant": "<store or restaurant name>",
   "date": "<ISO 8601 date, e.g. 2026-03-21>",
   "total": <total amount as a number, e.g. 25.50>,
-  "items": [{"name": "<item name>", "amount": <item amount as number>}],
-  "suggested_category": "<one of: Groceries, Dining Out, Shopping, Gas, Entertainment, Health, Transportation, Utilities, or Other>"
+  "payment_method": "<card type and last 4 digits visible on receipt, e.g. 'Visa 2902' or 'Mastercard 1234', or null if not visible>",
+  "items": [
+    {
+      "name": "<item name>",
+      "amount": <item amount as number>,
+$itemCategoryFields
+    }
+  ],
+  "suggested_category": "<best overall category name for this receipt>"
 }
 Do not include any explanation, markdown, or text outside the JSON object.
 ''';
+  }
 
   Future<ReceiptData> parseReceipt({
     required String apiKey,
     required File imageFile,
+    List<YnabCategory>? ynabCategories,
   }) async {
     final compressed = await _compressImage(imageFile);
     final base64Image = base64Encode(compressed);
     final mimeType = _detectMimeType(imageFile.path);
+    final prompt = _buildPrompt(ynabCategories);
 
     final body = jsonEncode({
       'model': ApiConstants.claudeModel,
@@ -49,7 +76,7 @@ Do not include any explanation, markdown, or text outside the JSON object.
             },
             {
               'type': 'text',
-              'text': _receiptPrompt,
+              'text': prompt,
             },
           ],
         },
@@ -115,7 +142,6 @@ Do not include any explanation, markdown, or text outside the JSON object.
   }
 
   ReceiptData _parseReceiptJson(String rawText) {
-    // Strip markdown fences if Claude wrapped the JSON
     final jsonString = _extractJson(rawText);
     if (jsonString == null) {
       throw ClaudeException(
@@ -129,6 +155,15 @@ Do not include any explanation, markdown, or text outside the JSON object.
         map['total'] =
             double.tryParse((map['total'] as String).replaceAll(',', '')) ?? 0.0;
       }
+      // Normalise item amounts
+      if (map['items'] is List) {
+        for (final item in map['items'] as List) {
+          if (item is Map<String, dynamic> && item['amount'] is String) {
+            item['amount'] =
+                double.tryParse((item['amount'] as String).replaceAll(',', '')) ?? 0.0;
+          }
+        }
+      }
       return ReceiptData.fromJson(map);
     } catch (e) {
       throw ClaudeException(
@@ -138,16 +173,13 @@ Do not include any explanation, markdown, or text outside the JSON object.
   }
 
   String? _extractJson(String text) {
-    // Already a bare JSON object
     final trimmed = text.trim();
     if (trimmed.startsWith('{')) return trimmed;
 
-    // Strip markdown fences: ```json ... ``` or ``` ... ```
     final fenceRegex = RegExp(r'```(?:json)?\s*([\s\S]*?)```');
     final fenceMatch = fenceRegex.firstMatch(text);
     if (fenceMatch != null) return fenceMatch.group(1)!.trim();
 
-    // Find first { ... } block
     final braceRegex = RegExp(r'\{[\s\S]*\}');
     final braceMatch = braceRegex.firstMatch(text);
     return braceMatch?.group(0);

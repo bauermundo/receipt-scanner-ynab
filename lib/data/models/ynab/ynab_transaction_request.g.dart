@@ -21,24 +21,18 @@ YnabTransactionRequest _$YnabTransactionRequestFromJson(
     );
 
 Map<String, dynamic> _$YnabTransactionRequestToJson(
-    YnabTransactionRequest instance) {
-  final val = <String, dynamic>{
-    'account_id': instance.accountId,
-    'date': instance.date,
-    'amount': instance.amount,
-    'cleared': instance.cleared,
-  };
-
-  void writeNotNull(String key, dynamic value) {
-    if (value != null) {
-      val[key] = value;
-    }
-  }
-
-  writeNotNull('payee_id', instance.payeeId);
-  writeNotNull('payee_name', instance.payeeName);
-  writeNotNull('category_id', instance.categoryId);
-  writeNotNull('memo', instance.memo);
-  val['approved'] = instance.approved;
-  return val;
-}
+        YnabTransactionRequest instance) =>
+    <String, dynamic>{
+      'account_id': instance.accountId,
+      'date': instance.date,
+      'amount': instance.amount,
+      'cleared': instance.cleared,
+      if (instance.payeeId case final value?) 'payee_id': value,
+      if (instance.payeeName case final value?) 'payee_name': value,
+      if (instance.categoryId case final value?) 'category_id': value,
+      if (instance.memo case final value?) 'memo': value,
+      'approved': instance.approved,
+      if (instance.subtransactions case final value?)
+        'subtransactions':
+            YnabTransactionRequest._subtransactionsToJson(value),
+    };
