@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../providers/settings_provider.dart';
 import '../../../core/errors/app_exception.dart';
+import '../../../data/models/ynab/ynab_category.dart';
 import '../../../router.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -55,12 +56,18 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       // Fetch YNAB categories so Claude can assign them per item
       final settings = ref.read(settingsNotifierProvider).valueOrNull;
       final budgetId = settings?.defaultBudgetId;
-      final categories = budgetId != null
-          ? await ref.read(ynabCategoriesProvider(budgetId).future).catchError((_) => <dynamic>[])
-          : null;
+      List<YnabCategory>? categories;
+      if (budgetId != null) {
+        try {
+          final raw = await ref.read(ynabCategoriesProvider(budgetId).future);
+          categories = (raw as List).whereType<YnabCategory>().toList();
+        } catch (_) {
+          // If categories fail to load, Claude will pick generic ones
+        }
+      }
       final receipt = await repo.parseReceiptFromImage(
         File(picked.path),
-        ynabCategories: categories?.cast(),
+        ynabCategories: categories,
       );
       ref.read(currentReceiptProvider.notifier).state = receipt;
       if (mounted) {

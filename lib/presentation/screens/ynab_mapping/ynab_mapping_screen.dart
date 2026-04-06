@@ -22,7 +22,8 @@ class _YnabMappingScreenState extends ConsumerState<YnabMappingScreen> {
   String? _error;
 
   // Per-item category overrides — keyed by item index
-  final Map<int, String?> _categoryOverrides = {};
+  // Value: (id, name) tuple; id==null means explicitly cleared
+  final Map<int, ({String? id, String? name})> _categoryOverrides = {};
 
   @override
   void initState() {
@@ -47,8 +48,15 @@ class _YnabMappingScreenState extends ConsumerState<YnabMappingScreen> {
 
   String? _categoryIdForItem(int index, ReceiptItem item) =>
       _categoryOverrides.containsKey(index)
-          ? _categoryOverrides[index]
+          ? _categoryOverrides[index]!.id
           : item.suggestedCategoryId;
+
+  String? _categoryNameForItem(int index, ReceiptItem item) {
+    if (_categoryOverrides.containsKey(index)) {
+      return _categoryOverrides[index]!.name;
+    }
+    return item.suggestedCategoryName?.split(':').last.trim();
+  }
 
   Future<void> _showCategoryPicker(
       BuildContext context, int index, ReceiptItem item, String budgetId) async {
@@ -85,7 +93,8 @@ class _YnabMappingScreenState extends ConsumerState<YnabMappingScreen> {
                     title: const Text('No category'),
                     selected: current == null,
                     onTap: () {
-                      setState(() => _categoryOverrides[index] = null);
+                      setState(() =>
+                          _categoryOverrides[index] = (id: null, name: null));
                       Navigator.pop(ctx);
                     },
                   ),
@@ -96,8 +105,8 @@ class _YnabMappingScreenState extends ConsumerState<YnabMappingScreen> {
                         selectedTileColor:
                             Theme.of(ctx).colorScheme.primaryContainer,
                         onTap: () {
-                          setState(
-                              () => _categoryOverrides[index] = cat.id);
+                          setState(() => _categoryOverrides[index] =
+                              (id: cat.id, name: cat.name));
                           Navigator.pop(ctx);
                         },
                       )),
@@ -125,10 +134,7 @@ class _YnabMappingScreenState extends ConsumerState<YnabMappingScreen> {
       // Build effective items (with overrides applied)
       final effectiveItems = receipt.items.asMap().entries
           .where((e) => e.value.amount > 0)
-          .map((e) => (
-                item: e.value,
-                categoryId: _categoryIdForItem(e.key, e.value),
-              ))
+          .map((e) => (item: e.value, categoryId: _categoryIdForItem(e.key, e.value)))
           .toList();
 
       // Use splits when 2+ items have distinct categories
@@ -276,12 +282,8 @@ class _YnabMappingScreenState extends ConsumerState<YnabMappingScreen> {
                     final i = entry.key;
                     final item = entry.value;
                     final catId = _categoryIdForItem(i, item);
-                    final catName = catId != null
-                        ? item.suggestedCategoryName
-                            ?.split(':')
-                            .last
-                            .trim()
-                        : null;
+                    final catName =
+                        catId != null ? _categoryNameForItem(i, item) : null;
 
                     return _ItemTile(
                       item: item,
