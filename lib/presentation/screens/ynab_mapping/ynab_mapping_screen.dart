@@ -181,7 +181,7 @@ class _YnabMappingScreenState extends ConsumerState<YnabMappingScreen> {
         cleared: 'uncleared',
         payeeName: receipt.merchant,
         categoryId: subtransactions == null ? singleCategoryId : null,
-        memo: subtransactions != null ? '[Receipt scan — split]' : 'Receipt scan',
+        memo: receipt.memo ?? (subtransactions != null ? 'Receipt scan — split' : 'Receipt scan'),
         approved: false,
         subtransactions: subtransactions,
       );
@@ -236,6 +236,25 @@ class _YnabMappingScreenState extends ConsumerState<YnabMappingScreen> {
             // ── Receipt header ────────────────────────────────────────────
             _ReceiptHeader(receipt: receipt),
             const SizedBox(height: 20),
+
+            // ── Memo preview ──────────────────────────────────────────────
+            if (receipt.memo != null) ...[
+              Text('Memo', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  receipt.memo!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
 
             // ── Account ───────────────────────────────────────────────────
             Text('Account', style: Theme.of(context).textTheme.titleMedium),

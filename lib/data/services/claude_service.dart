@@ -36,6 +36,7 @@ ${categorySection}Extract the receipt data from this image and return ONLY a val
   "date": "<ISO 8601 date, e.g. 2026-03-21>",
   "total": <total amount as a number, e.g. 25.50>,
   "payment_method": "<card type and last 4 digits visible on receipt, e.g. 'Visa 2902' or 'Mastercard 1234', or null if not visible>",
+  "memo": "<if 5 or fewer items: comma-separated item names, e.g. 'Milk, Eggs, Tide Pods'. If more than 5 items: a concise 1-sentence summary of what was purchased, e.g. 'Weekly grocery run — produce, dairy, cleaning supplies, and snacks'. Max 100 characters.>",
   "items": [
     {
       "name": "<item name>",

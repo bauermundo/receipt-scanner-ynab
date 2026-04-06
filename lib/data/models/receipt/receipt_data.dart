@@ -12,6 +12,7 @@ class ReceiptData {
     this.items = const [],
     this.suggestedCategory,
     this.paymentMethod,
+    this.memo,
   });
 
   final String merchant;
@@ -29,6 +30,9 @@ class ReceiptData {
   @JsonKey(name: 'payment_method')
   final String? paymentMethod;
 
+  /// Short memo for YNAB — item list for small orders, AI summary for large ones.
+  final String? memo;
+
   /// Amount in YNAB milliunits (negative = outflow).
   int get amountInMilliunits => -(total * 1000).round();
 
@@ -44,6 +48,7 @@ class ReceiptData {
     List<ReceiptItem>? items,
     String? suggestedCategory,
     String? paymentMethod,
+    String? memo,
   }) {
     return ReceiptData(
       merchant: merchant ?? this.merchant,
@@ -52,6 +57,7 @@ class ReceiptData {
       items: items ?? this.items,
       suggestedCategory: suggestedCategory ?? this.suggestedCategory,
       paymentMethod: paymentMethod ?? this.paymentMethod,
+      memo: memo ?? this.memo,
     );
   }
 }
