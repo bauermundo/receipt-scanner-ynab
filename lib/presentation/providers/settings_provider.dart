@@ -48,7 +48,7 @@ final receiptRepositoryProvider = Provider<ReceiptRepository>((ref) {
 final ynabRepositoryProvider = Provider<YnabRepository>((ref) {
   return YnabRepository(
     ref.watch(ynabServiceProvider),
-    ref.watch(storageServiceProvider),
+    () => ref.read(settingsNotifierProvider.notifier).getValidAccessToken(),
   );
 });
 
@@ -171,7 +171,6 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     ref.invalidate(ynabBudgetsProvider);
     ref.invalidate(ynabAccountsProvider);
     ref.invalidate(ynabCategoriesProvider);
-    ref.invalidate(ynabPayeesProvider);
   }
 
   Future<void> saveAnthropicApiKey(String key) async {
@@ -184,7 +183,6 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     state = AsyncData(state.value!.copyWith(defaultBudgetId: budgetId));
     ref.invalidate(ynabAccountsProvider);
     ref.invalidate(ynabCategoriesProvider);
-    ref.invalidate(ynabPayeesProvider);
   }
 
   Future<void> saveDefaultAccount(String accountId) async {
@@ -210,11 +208,6 @@ final ynabAccountsProvider =
 final ynabCategoriesProvider =
     FutureProvider.autoDispose.family((ref, String budgetId) async {
   return ref.watch(ynabRepositoryProvider).getCategories(budgetId);
-});
-
-final ynabPayeesProvider =
-    FutureProvider.autoDispose.family((ref, String budgetId) async {
-  return ref.watch(ynabRepositoryProvider).getPayees(budgetId);
 });
 
 // ── Receipt state ──────────────────────────────────────────────────────────────

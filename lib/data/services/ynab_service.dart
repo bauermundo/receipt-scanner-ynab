@@ -5,7 +5,6 @@ import '../../core/errors/app_exception.dart';
 import '../models/ynab/ynab_account.dart';
 import '../models/ynab/ynab_budget.dart';
 import '../models/ynab/ynab_category.dart';
-import '../models/ynab/ynab_payee.dart';
 import '../models/ynab/ynab_transaction_request.dart';
 
 class YnabService {
@@ -59,18 +58,6 @@ class YnabService {
       }
     }
     return categories;
-  }
-
-  // ── Payees ─────────────────────────────────────────────────────────────────
-
-  Future<List<YnabPayee>> getPayees(String token, String budgetId) async {
-    final data = await _get(
-        token, '${ApiConstants.ynabBudgetsEndpoint}/$budgetId/payees');
-    final list = data['payees'] as List;
-    return list
-        .map((p) => YnabPayee.fromJson(p as Map<String, dynamic>))
-        .where((p) => !p.deleted)
-        .toList();
   }
 
   // ── Create transaction ─────────────────────────────────────────────────────
