@@ -14,10 +14,10 @@ class YnabRepository {
   final StorageService _storageService;
 
   Future<String> _requireToken() async {
-    final token = await _storageService.getYnabToken();
+    final token = await _storageService.getYnabAccessToken();
     if (token == null || token.trim().isEmpty) {
       throw const YnabException(
-          'No YNAB token set. Please add it in Settings.', 'Missing token');
+          'Not connected to YNAB. Please connect in Settings.', 'Missing token');
     }
     return token;
   }

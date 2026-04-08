@@ -12,23 +12,60 @@ class StorageService {
   final SharedPreferences _prefs;
   final FlutterSecureStorage _secure;
 
-  // ── Secure (API keys) ──────────────────────────────────────────────────────
+  // ── YNAB OAuth tokens ──────────────────────────────────────────────────────
 
-  Future<void> saveYnabToken(String token) async {
+  Future<void> saveYnabTokens({
+    required String accessToken,
+    String? refreshToken,
+    required DateTime expiresAt,
+  }) async {
     try {
-      await _secure.write(key: ApiConstants.keyYnabToken, value: token);
+      await _secure.write(
+          key: ApiConstants.keyYnabAccessToken, value: accessToken);
+      if (refreshToken != null) {
+        await _secure.write(
+            key: ApiConstants.keyYnabRefreshToken, value: refreshToken);
+      }
+      await _prefs.setInt(ApiConstants.keyYnabTokenExpiresAt,
+          expiresAt.millisecondsSinceEpoch);
     } catch (e) {
-      throw StorageException('Failed to save YNAB token', e.toString());
+      throw StorageException('Failed to save YNAB tokens', e.toString());
     }
   }
 
-  Future<String?> getYnabToken() async {
+  Future<String?> getYnabAccessToken() async {
     try {
-      return await _secure.read(key: ApiConstants.keyYnabToken);
+      return await _secure.read(key: ApiConstants.keyYnabAccessToken);
     } catch (e) {
-      throw StorageException('Failed to read YNAB token', e.toString());
+      throw StorageException('Failed to read YNAB access token', e.toString());
     }
   }
+
+  Future<String?> getYnabRefreshToken() async {
+    try {
+      return await _secure.read(key: ApiConstants.keyYnabRefreshToken);
+    } catch (e) {
+      throw StorageException('Failed to read YNAB refresh token', e.toString());
+    }
+  }
+
+  DateTime? getYnabTokenExpiresAt() {
+    final ms = _prefs.getInt(ApiConstants.keyYnabTokenExpiresAt);
+    if (ms == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  Future<void> clearYnabTokens() async {
+    try {
+      await _secure.delete(key: ApiConstants.keyYnabAccessToken);
+      await _secure.delete(key: ApiConstants.keyYnabRefreshToken);
+      await _prefs.remove(ApiConstants.keyYnabTokenExpiresAt);
+    } catch (e) {
+      throw StorageException('Failed to clear YNAB tokens', e.toString());
+    }
+  }
+
+  // ── Anthropic API key ──────────────────────────────────────────────────────
 
   Future<void> saveAnthropicApiKey(String key) async {
     try {

@@ -5,6 +5,7 @@ import '../../data/models/receipt/receipt_data.dart';
 import '../../data/services/storage_service.dart';
 import '../../data/services/claude_service.dart';
 import '../../data/services/ynab_service.dart';
+import '../../data/services/oauth_service.dart';
 import '../../data/repositories/receipt_repository.dart';
 import '../../data/repositories/ynab_repository.dart';
 
@@ -33,6 +34,10 @@ final ynabServiceProvider = Provider<YnabService>((ref) {
   return YnabService(ref.watch(httpClientProvider));
 });
 
+final oAuthServiceProvider = Provider<OAuthService>((ref) {
+  return const OAuthService();
+});
+
 final receiptRepositoryProvider = Provider<ReceiptRepository>((ref) {
   return ReceiptRepository(
     ref.watch(claudeServiceProvider),
@@ -51,29 +56,44 @@ final ynabRepositoryProvider = Provider<YnabRepository>((ref) {
 
 class AppSettings {
   const AppSettings({
-    this.ynabToken,
+    this.ynabAccessToken,
+    this.ynabRefreshToken,
+    this.ynabTokenExpiresAt,
     this.anthropicApiKey,
     this.defaultBudgetId,
     this.defaultAccountId,
   });
 
-  final String? ynabToken;
+  final String? ynabAccessToken;
+  final String? ynabRefreshToken;
+  final DateTime? ynabTokenExpiresAt;
   final String? anthropicApiKey;
   final String? defaultBudgetId;
   final String? defaultAccountId;
 
-  bool get hasYnabToken => ynabToken != null && ynabToken!.isNotEmpty;
+  bool get hasYnabToken =>
+      ynabAccessToken != null && ynabAccessToken!.isNotEmpty;
+
+  bool get isYnabTokenExpired =>
+      ynabTokenExpiresAt != null &&
+      DateTime.now().isAfter(ynabTokenExpiresAt!);
+
   bool get hasAnthropicKey =>
       anthropicApiKey != null && anthropicApiKey!.isNotEmpty;
 
   AppSettings copyWith({
-    String? ynabToken,
+    String? ynabAccessToken,
+    String? ynabRefreshToken,
+    DateTime? ynabTokenExpiresAt,
     String? anthropicApiKey,
     String? defaultBudgetId,
     String? defaultAccountId,
+    bool clearYnab = false,
   }) {
     return AppSettings(
-      ynabToken: ynabToken ?? this.ynabToken,
+      ynabAccessToken: clearYnab ? null : (ynabAccessToken ?? this.ynabAccessToken),
+      ynabRefreshToken: clearYnab ? null : (ynabRefreshToken ?? this.ynabRefreshToken),
+      ynabTokenExpiresAt: clearYnab ? null : (ynabTokenExpiresAt ?? this.ynabTokenExpiresAt),
       anthropicApiKey: anthropicApiKey ?? this.anthropicApiKey,
       defaultBudgetId: defaultBudgetId ?? this.defaultBudgetId,
       defaultAccountId: defaultAccountId ?? this.defaultAccountId,
@@ -85,28 +105,73 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   @override
   Future<AppSettings> build() async {
     final storage = ref.watch(storageServiceProvider);
-    // Catch storage errors (e.g. Android Keystore issues) so the app
-    // always starts rather than getting stuck in AsyncError state.
-    String? ynabToken;
+    String? accessToken;
+    String? refreshToken;
     String? anthropicApiKey;
     try {
-      ynabToken = await storage.getYnabToken();
+      accessToken = await storage.getYnabAccessToken();
+      refreshToken = await storage.getYnabRefreshToken();
       anthropicApiKey = await storage.getAnthropicApiKey();
     } catch (_) {
-      // Keys unreadable — user will need to re-enter in Settings
+      // Secure storage read failed — user will need to re-authenticate
     }
     return AppSettings(
-      ynabToken: ynabToken,
+      ynabAccessToken: accessToken,
+      ynabRefreshToken: refreshToken,
+      ynabTokenExpiresAt: storage.getYnabTokenExpiresAt(),
       anthropicApiKey: anthropicApiKey,
       defaultBudgetId: storage.getDefaultBudgetId(),
       defaultAccountId: storage.getDefaultAccountId(),
     );
   }
 
-  Future<void> saveYnabToken(String token) async {
-    await ref.read(storageServiceProvider).saveYnabToken(token);
-    state = AsyncData(state.value!.copyWith(ynabToken: token));
+  /// Returns a valid access token, refreshing if expired.
+  Future<String?> getValidAccessToken() async {
+    final current = state.valueOrNull;
+    if (current == null || !current.hasYnabToken) return null;
+
+    // Refresh proactively if within 5 minutes of expiry
+    final expiresAt = current.ynabTokenExpiresAt;
+    final needsRefresh = expiresAt == null ||
+        DateTime.now().isAfter(expiresAt.subtract(const Duration(minutes: 5)));
+
+    if (!needsRefresh) return current.ynabAccessToken;
+
+    final refreshToken = current.ynabRefreshToken;
+    if (refreshToken == null) return current.ynabAccessToken;
+
+    try {
+      final tokens =
+          await ref.read(oAuthServiceProvider).refresh(refreshToken);
+      await saveYnabTokens(tokens);
+      return tokens.accessToken;
+    } catch (_) {
+      // Refresh failed — return current token and let the API call fail
+      return current.ynabAccessToken;
+    }
+  }
+
+  Future<void> saveYnabTokens(OAuthTokens tokens) async {
+    await ref.read(storageServiceProvider).saveYnabTokens(
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresAt: tokens.expiresAt,
+        );
+    state = AsyncData(state.value!.copyWith(
+      ynabAccessToken: tokens.accessToken,
+      ynabRefreshToken: tokens.refreshToken ?? state.value?.ynabRefreshToken,
+      ynabTokenExpiresAt: tokens.expiresAt,
+    ));
     ref.invalidate(ynabBudgetsProvider);
+  }
+
+  Future<void> clearYnabTokens() async {
+    await ref.read(storageServiceProvider).clearYnabTokens();
+    state = AsyncData(state.value!.copyWith(clearYnab: true));
+    ref.invalidate(ynabBudgetsProvider);
+    ref.invalidate(ynabAccountsProvider);
+    ref.invalidate(ynabCategoriesProvider);
+    ref.invalidate(ynabPayeesProvider);
   }
 
   Future<void> saveAnthropicApiKey(String key) async {

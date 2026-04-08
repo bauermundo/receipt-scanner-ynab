@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/settings_provider.dart';
+import '../../../core/errors/app_exception.dart';
 import '../../../data/models/ynab/ynab_budget.dart';
 import '../../../data/models/ynab/ynab_account.dart';
 
@@ -13,58 +14,110 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _ynabTokenCtrl;
   late TextEditingController _anthropicKeyCtrl;
-  bool _obscureYnab = true;
   bool _obscureAnthropic = true;
-  bool _saving = false;
+  bool _savingKey = false;
+  bool _connectingYnab = false;
 
   @override
   void initState() {
     super.initState();
-    _ynabTokenCtrl = TextEditingController();
     _anthropicKeyCtrl = TextEditingController();
-    // Populate once settings finish loading (may already be ready)
     ref.listenManual(settingsNotifierProvider, (_, next) {
       final s = next.valueOrNull;
-      if (s != null) {
-        if (_ynabTokenCtrl.text.isEmpty) {
-          _ynabTokenCtrl.text = s.ynabToken ?? '';
-        }
-        if (_anthropicKeyCtrl.text.isEmpty) {
-          _anthropicKeyCtrl.text = s.anthropicApiKey ?? '';
-        }
+      if (s != null && _anthropicKeyCtrl.text.isEmpty) {
+        _anthropicKeyCtrl.text = s.anthropicApiKey ?? '';
       }
     }, fireImmediately: true);
   }
 
   @override
   void dispose() {
-    _ynabTokenCtrl.dispose();
     _anthropicKeyCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+  Future<void> _connectYnab() async {
+    setState(() => _connectingYnab = true);
     try {
-      final notifier = ref.read(settingsNotifierProvider.notifier);
-      await notifier.saveYnabToken(_ynabTokenCtrl.text.trim());
-      await notifier.saveAnthropicApiKey(_anthropicKeyCtrl.text.trim());
+      final oAuth = ref.read(oAuthServiceProvider);
+      final tokens = await oAuth.authorize();
+      await ref.read(settingsNotifierProvider.notifier).saveYnabTokens(tokens);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved')),
+          const SnackBar(
+            content: Text('YNAB connected!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on AppException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.userMessage),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Could not connect to YNAB: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() => _connectingYnab = false);
+    }
+  }
+
+  Future<void> _disconnectYnab() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Disconnect YNAB?'),
+        content: const Text(
+            'You will need to reconnect to create transactions.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Disconnect',
+                  style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(settingsNotifierProvider.notifier).clearYnabTokens();
+    }
+  }
+
+  Future<void> _saveAnthropicKey() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _savingKey = true);
+    try {
+      await ref
+          .read(settingsNotifierProvider.notifier)
+          .saveAnthropicApiKey(_anthropicKeyCtrl.text.trim());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('API key saved')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingKey = false);
     }
   }
 
@@ -72,6 +125,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(settingsNotifierProvider);
     final settings = settingsAsync.valueOrNull;
+    final isConnected = settings?.hasYnabToken == true;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -85,27 +139,70 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── API Keys ────────────────────────────────────────────────
-                Text('API Keys',
+                // ── YNAB Connection ─────────────────────────────────────────
+                Text('YNAB',
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _ynabTokenCtrl,
-                  obscureText: _obscureYnab,
-                  decoration: InputDecoration(
-                    labelText: 'YNAB Personal Access Token',
-                    hintText: 'Paste your token from app.ynab.com',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureYnab
-                          ? Icons.visibility_off
-                          : Icons.visibility),
-                      onPressed: () =>
-                          setState(() => _obscureYnab = !_obscureYnab),
+
+                if (isConnected) ...[
+                  // Connected state
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.green.shade700),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.green.shade900.withOpacity(0.2),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle,
+                            color: Colors.green.shade400, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Connected to YNAB',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: Colors.green.shade300),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _disconnectYnab,
+                          style: TextButton.styleFrom(
+                              foregroundColor: Colors.red.shade300),
+                          child: const Text('Disconnect'),
+                        ),
+                      ],
                     ),
                   ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
+                ] else ...[
+                  // Not connected state
+                  OutlinedButton.icon(
+                    onPressed: _connectingYnab ? null : _connectYnab,
+                    icon: _connectingYnab
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.link),
+                    label: const Text('Connect YNAB Account'),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Opens YNAB in your browser to authorise this app.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
+                ],
+
+                const Divider(height: 40),
+
+                // ── Anthropic API Key ────────────────────────────────────────
+                Text('Claude AI',
+                    style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _anthropicKeyCtrl,
@@ -124,21 +221,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: _saving ? null : _save,
-                  child: _saving
+                  onPressed: _savingKey ? null : _saveAnthropicKey,
+                  child: _savingKey
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child:
+                              CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Save API Keys'),
+                      : const Text('Save API Key'),
                 ),
 
                 const Divider(height: 40),
 
-                // ── Default Budget & Account ─────────────────────────────────
+                // ── Default Budget & Account ──────────────────────────────────
                 Text('Defaults',
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
@@ -148,7 +246,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                if (settings?.hasYnabToken == true) ...[
+                if (isConnected) ...[
                   _BudgetDropdown(currentSettings: settings!),
                   const SizedBox(height: 12),
                   if (settings.defaultBudgetId != null)
@@ -157,7 +255,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         currentSettings: settings),
                 ] else
                   const Text(
-                    'Save your YNAB token above to select a budget and account.',
+                    'Connect YNAB above to select a budget and account.',
                     style: TextStyle(fontStyle: FontStyle.italic),
                   ),
 
