@@ -20,7 +20,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   String? _errorMessage;
 
   Future<void> _pickImage(ImageSource source) async {
-    final settings = ref.read(settingsNotifierProvider).valueOrNull;
+    // Wait for settings to finish loading if still in progress
+    final settingsAsync = ref.read(settingsNotifierProvider);
+    final settings = settingsAsync.isLoading
+        ? await ref.read(settingsNotifierProvider.future).catchError((_) => null)
+        : settingsAsync.valueOrNull;
 
     if (settings?.hasAnthropicKey != true) {
       ScaffoldMessenger.of(context).showSnackBar(

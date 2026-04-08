@@ -22,11 +22,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    final settings = ref.read(settingsNotifierProvider).valueOrNull;
-    _ynabTokenCtrl =
-        TextEditingController(text: settings?.ynabToken ?? '');
-    _anthropicKeyCtrl =
-        TextEditingController(text: settings?.anthropicApiKey ?? '');
+    _ynabTokenCtrl = TextEditingController();
+    _anthropicKeyCtrl = TextEditingController();
+    // Populate once settings finish loading (may already be ready)
+    ref.listenManual(settingsNotifierProvider, (_, next) {
+      final s = next.valueOrNull;
+      if (s != null) {
+        if (_ynabTokenCtrl.text.isEmpty) {
+          _ynabTokenCtrl.text = s.ynabToken ?? '';
+        }
+        if (_anthropicKeyCtrl.text.isEmpty) {
+          _anthropicKeyCtrl.text = s.anthropicApiKey ?? '';
+        }
+      }
+    }, fireImmediately: true);
   }
 
   @override

@@ -85,8 +85,16 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   @override
   Future<AppSettings> build() async {
     final storage = ref.watch(storageServiceProvider);
-    final ynabToken = await storage.getYnabToken();
-    final anthropicApiKey = await storage.getAnthropicApiKey();
+    // Catch storage errors (e.g. Android Keystore issues) so the app
+    // always starts rather than getting stuck in AsyncError state.
+    String? ynabToken;
+    String? anthropicApiKey;
+    try {
+      ynabToken = await storage.getYnabToken();
+      anthropicApiKey = await storage.getAnthropicApiKey();
+    } catch (_) {
+      // Keys unreadable — user will need to re-enter in Settings
+    }
     return AppSettings(
       ynabToken: ynabToken,
       anthropicApiKey: anthropicApiKey,
