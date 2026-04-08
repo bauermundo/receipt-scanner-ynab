@@ -186,6 +186,7 @@ class _BudgetDropdown extends ConsumerWidget {
         final list = budgets as List<YnabBudget>;
         return DropdownButtonFormField<String>(
           decoration: const InputDecoration(labelText: 'Default Budget'),
+          isExpanded: true,
           value: list.any((b) => b.id == currentSettings.defaultBudgetId)
               ? currentSettings.defaultBudgetId
               : null,
@@ -222,6 +223,7 @@ class _AccountDropdown extends ConsumerWidget {
         final list = accounts as List<YnabAccount>;
         return DropdownButtonFormField<String>(
           decoration: const InputDecoration(labelText: 'Default Account'),
+          isExpanded: true,
           value: list.any((a) => a.id == currentSettings.defaultAccountId)
               ? currentSettings.defaultAccountId
               : null,
