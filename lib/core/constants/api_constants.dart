@@ -6,7 +6,7 @@ class ApiConstants {
   static const String claudeMessagesEndpoint = '/messages';
   static const String claudeModel = 'claude-sonnet-4-6';
   static const String anthropicVersion = '2023-06-01';
-  static const int claudeMaxTokens = 1024;
+  static const int claudeMaxTokens = 4096;
 
   // YNAB API
   static const String ynabBaseUrl = 'https://api.ynab.com/v1';
@@ -19,6 +19,6 @@ class ApiConstants {
   static const String keyDefaultAccountId = 'default_account_id';
 
   // Image compression
-  static const int imageMaxDimension = 1200;
-  static const int imageQuality = 80;
+  static const int imageMaxDimension = 1600;
+  static const int imageQuality = 90;
 }
